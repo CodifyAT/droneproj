@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Map with Markers, Lines, and Coordinates</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCd_tfX7EDwloXXITmwYRmlRZRcp_VAqGw"></script>
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+        #coordinates {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Map with Markers, Lines, and Coordinates</h1>
+    <h1 id="current-location"></h1>
+    <div id="map"></div>
+    <table id="coordinates">
+    </table>
+    <button id="submit-data">Submit data</button>
+    <button id="get-live-location">Get Live Location</button>
+
+    <script>
+        document.getElementById('submit-data').addEventListener('click', function() {
+            // Collect table data
+            var table = document.getElementById('coordinates');
+            var data = [];
+            for (var i = 1; i < table.rows.length; i++) {
+                var row = table.rows[i];
+                var lat = row.cells[1].textContent;
+                var long = row.cells[2].textContent;
+                data.push({ lat: lat, long: long });
+            }
+
+            // Send data to Flask using AJAX
+            fetch('/process_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Handle response from Flask (if needed)
+                console.log(data);
+            });
+        });
+    </script>
+
+    <script>
+        var map;
+        var markers = [];
+        var lines = [];
+        var i = 1;
+
+        function initMap() {
+            var initialLocation = { lat: 0, lng: 0 }; // Initial map location
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: initialLocation,
+                zoom: 8
+            });
+
+            // Add a click event listener to the map to add a marker at the clicked location
+            map.addListener('click', function(event) {
+                addMarker(event.latLng);
+            });
+
+            // Initialize the coordinates
+            updateCoordinates(initialLocation,0);
+        }
+        document.getElementById('get-live-location').addEventListener('click', function() {
+            // Get the user's live location and add a marker to the map
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(function (position) {
+                    var userLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    var marker = new google.maps.Marker({
+                        position: userLocation,
+                        map: map,
+                        draggable: true
+                    });
+                    updateCoordinates(marker.getPosition(),1);
+                    markers.push(marker);
+                    map.setCenter(userLocation);
+                    updateLines();
+                }, function (error) {
+                    alert('Could not retrieve live location: ' + error.message);
+                });
+            } else {
+                alert('Geolocation is not supported in your browser.');
+            }
+        });
+        function addMarker(location) {
+            var marker = new google.maps.Marker({
+                position: location,
+                map: map,
+                draggable: true
+            });
+            updateCoordinates(marker.getPosition(),0);
+            markers.push(marker);
+            updateLines();
+        }
+
+        function updateCoordinates(position,j) {
+            if(j==0){
+                var coordinatesTable = document.getElementById('coordinates');
+                var row = coordinatesTable.insertRow(-1); // Add new row at the end
+                var sno = row.insertCell(0);
+                var cell1 = row.insertCell(1);
+                var cell2 = row.insertCell(2);
+                var deleteCell = row.insertCell(3);
+                cell1.innerHTML = position.lat();
+                cell2.innerHTML = position.lng();
+                sno.innerHTML = i;
+                i++;
+            }
+
+            // Create a delete button for the marker
+            var deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.onclick = function() {
+                deleteMarker(row);
+            };
+            deleteCell.appendChild(deleteButton);
+        }
+
+        function deleteMarker(row) {
+            var index = row.rowIndex - 1;
+            markers[index].setMap(null);
+            markers.splice(index, 1);
+            row.remove();
+            updateLines();
+        }
+
+        function updateLines() {
+            lines.forEach(function(line) {
+                line.setMap(null);
+            });
+            lines = [];
+            var line = new google.maps.Polyline({
+                    path: [markers[0].getPosition(), markers[1].getPosition()],
+                    map: map,
+                    strokeColor: '#FF0000',
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2
+                });
+            lines.push(line)
+            for (var j = 1; j < markers.length; j++) {
+                var line = new google.maps.Polyline({
+                    path: [markers[j - 1].getPosition(), markers[j].getPosition()],
+                    map: map,
+                    strokeColor: '#FF0000',
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2
+                });
+                lines.push(line);
+            }
+        }
+    </script>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCd_tfX7EDwloXXITmwYRmlRZRcp_VAqGw&callback=initMap"></script>
+</body>
+</html>
